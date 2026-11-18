@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AvioTrace · Prototype v4</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --ink: #1d2126; --muted: #5d636b; --line: #e3e4e1;
+    --accent: #2563c9; --accent-soft: #eaf1fc;
+    --unit: #a35a12; --unit-soft: #fbf1e6;
+    --none: #5d636b; --none-soft: #f0f0ee;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181b; --card: #1f2226; --ink: #eceef0; --muted: #a3a9b1; --line: #33373c;
+      --accent: #7aa7f0; --accent-soft: #1f2c41; --unit: #e2a35f; --unit-soft: #3a2b1b; --none: #a3a9b1; --none-soft: #2a2d31; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust: 100%; }
+  main { max-width: 720px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 8px 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; line-height: 1.3; margin: 0 0 12px; }
+  h3 { font-size: 17px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 15px; }
+  .tag { display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: .02em; padding: 3px 10px; border-radius: 999px; background: var(--none-soft); color: var(--muted); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+  section { margin-top: 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+
+  /* Case picker */
+  .cases { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 520px) { .cases { grid-template-columns: 1fr; } }
+  .case { text-align: left; font: inherit; color: inherit; background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; cursor: pointer; min-height: 64px; display: grid; gap: 2px; }
+  .case:hover { border-color: var(--muted); }
+  .case[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .case .line1 { font-weight: 600; }
+  .case .line2 { font-size: 15px; color: var(--muted); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .k-aircraft .dot, .dot.k-aircraft { background: var(--accent); }
+  .k-unit .dot, .dot.k-unit { background: var(--unit); }
+  .k-none .dot, .dot.k-none { background: var(--none); }
+
+  /* Answer */
+  .answer { border-left: 6px solid var(--none); }
+  .answer.k-aircraft { border-left-color: var(--accent); }
+  .answer.k-unit { border-left-color: var(--unit); }
+  .answer .kicker { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  .answer .headline { font-size: 24px; line-height: 1.3; font-weight: 700; margin: 0 0 14px; }
+  .next { background: var(--none-soft); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+  .k-aircraft .next { background: var(--accent-soft); }
+  .k-unit .next { background: var(--unit-soft); }
+  .next strong { display: block; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .gauge { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  .gauge .label { font-size: 14px; color: var(--muted); }
+  .gauge .value { font-weight: 700; }
+  .note { margin: 12px 0 0; }
+  .bars { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: 1px; }
+  .bars i { width: 18px; height: 8px; border-radius: 4px; background: var(--line); }
+  .bars i.on { background: var(--ink); }
+
+  /* Steps */
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+  ol.steps > li { position: relative; padding: 0 0 22px 48px; counter-increment: s; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--line); display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+  ol.steps > li::after { content: ""; position: absolute; left: 16px; top: 36px; bottom: 4px; width: 1.5px; background: var(--line); }
+  ol.steps > li:last-child::after { display: none; }
+  ol.steps > li:last-child { padding-bottom: 0; }
+  .quote { border-left: 3px solid var(--line); padding: 2px 0 2px 12px; color: var(--muted); }
+
+  /* Timeline of records */
+  .tl { list-style: none; margin: 8px 0 8px; padding: 0; display: grid; gap: 8px; }
+  .tl li { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 96px 1fr; gap: 2px 12px; background: var(--card); }
+  .tl li.today { border-style: dashed; }
+  .tl .when { font-size: 14px; color: var(--muted); grid-row: span 2; }
+  .tl .what { font-size: 15px; }
+  .tl .res { font-size: 14px; color: var(--muted); }
+  .hl { font-weight: 700; padding: 0 4px; border-radius: 4px; }
+  .k-aircraft .hl.slot { background: var(--accent-soft); color: var(--accent); }
+  .k-unit .hl.unit { background: var(--unit-soft); color: var(--unit); }
+  .key { font-size: 14px; color: var(--muted); }
+
+  /* Causes */
+  .causes { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+  .causes li { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .causes li:first-child { border-top: 0; }
+  .causes .why { grid-column: 1 / -1; font-size: 15px; color: var(--muted); }
+  .lk { font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .lk.more { color: var(--accent); }
+  .lk.unit { color: var(--unit); }
+  .lk.less, .lk.open { color: var(--muted); }
+
+  /* Details */
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-top: 10px; }
+  summary { cursor: pointer; padding: 14px 16px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 20px; line-height: 1; }
+  details[open] summary::after { content: "–"; }
+  details > div { padding: 0 16px 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; border-top: 0; }
+  dl.gl { margin: 0; }
+  dl.gl dt { font-weight: 600; margin-top: 10px; }
+  dl.gl dd { margin: 0; color: var(--muted); font-size: 15px; }
+  form.add { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  form.add label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+  form.add .wide { grid-column: 1 / -1; }
+  input, select, button.btn { font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+  button.btn { background: var(--accent); color: #fff; border: 0; font-weight: 600; cursor: pointer; }
+  input, select { width: 100%; min-width: 0; }
+  form.add label { min-width: 0; }
+  .scroll { overflow-x: auto; }
+  @media (max-width: 520px) {
+    .card { padding: 16px; }
+    ol.steps > li { padding-left: 42px; }
+    .tl li { grid-template-columns: 1fr; }
+    .tl .when { grid-row: auto; }
+    .tl .when br { display: none; }
+    .answer .headline { font-size: 22px; }
+    form.add { grid-template-columns: 1fr; }
+  }
+  footer { margin-top: 36px; font-size: 14px; color: var(--muted); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  @media print { details { break-inside: avoid; } details:not([open]) > div { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="tag">Prototype v4 · demonstration data</span>
+    <h1>AvioTrace</h1>
+    <p class="muted">Before you remove another unit, see whether the fault keeps following the <strong>aircraft</strong> or the <strong>unit</strong>, and how we got there.</p>
+  </header>
+
+  <section aria-labelledby="pick-h">
+    <h2 id="pick-h">Today's faults</h2>
+    <div class="cases" id="cases" role="group" aria-label="Choose a fault"></div>
+  </section>
+
+  <section aria-live="polite" id="answer"></section>
+
+  <section aria-labelledby="how-h">
+    <h2 id="how-h">How AvioTrace got here</h2>
+    <div class="card"><ol class="steps" id="steps"></ol></div>
+  </section>
+
+  <section aria-labelledby="more-h">
+    <h2 id="more-h">More detail</h2>
+    <details id="d-records"><summary>Records behind this answer</summary><div id="records"></div></details>
+    <details id="d-snap"><summary>What was happening during the fault (example)</summary><div id="snap"></div></details>
+    <details id="d-compare"><summary>What the usual serial-number rule would say</summary><div id="compare"></div></details>
+    <details><summary>How the rules work</summary><div>
+      <p class="small"><strong>Aircraft-side pattern.</strong> At least 2 <em>different</em> units came off the same aircraft slot in the last 12 months with the same fault code, and the shop found nothing wrong each time. A confirmed unit failure at that slot lowers how sure we are, because a real fault could explain it.</p>
+      <p class="small"><strong>Unit-side pattern.</strong> The same unit came off at least 2 <em>different</em> aircraft with the same fault code, and the shop found nothing wrong each time. For units we look at their <strong>whole history</strong>, not just 12 months, because units can sit on the spares shelf for months between installs. (Our synthetic fleet test showed this catches about twice as many problem units.)</p>
+      <p class="small"><strong>How sure</strong> depends on how many repeats point the same way. <strong>How urgent</strong> is separate: how serious the system is × how often the fault has come back. A strong pattern on cabin equipment can be less urgent than a weak one on navigation.</p>
+      <p class="small muted">AvioTrace never removes or releases anything by itself. It shows the pattern and the records; a qualified person decides.</p>
+    </div></details>
+    <details><summary>Words used here</summary><div><dl class="gl">
+      <dt>Unit</dt><dd>A replaceable box of electronics (an "LRU"), e.g. a navigation computer. Each has a serial number.</dd>
+      <dt>Slot</dt><dd>The place on a specific aircraft where a unit is installed, e.g. N804AT, left slot.</dd>
+      <dt>No fault found (NFF)</dt><dd>The unit was removed for a fault, but the repair shop's test found nothing wrong.</dd>
+      <dt>Fault code</dt><dd>The code recorded with the fault, used here to tell whether faults look like the same problem.</dd>
+      <dt>Shop test</dt><dd>The standard bench test a unit gets after removal. It runs on the ground, so it may not recreate flight conditions.</dd>
+      <dt>Self-test (BITE)</dt><dd>The unit's built-in check of itself.</dd>
+      <dt>Aircraft side</dt><dd>Everything around the unit that stays with the aircraft: wiring, connectors, power, and signals from other systems.</dd>
+    </dl></div></details>
+    <details><summary>Try it: add a removal or a new fault</summary><div>
+      <p class="small muted">Add a record and the answers update. Try adding a third "no fault found" removal from N807AT right slot (code 34-21-01), then open Case 3.</p>
+      <form class="add" id="add">
+        <label>Type<select id="f-type"><option value="hist">Past removal</option><option value="open">New fault today</option></select></label>
+        <label>Date<input id="f-date" type="date" value="2026-10-20" required></label>
+        <label>Aircraft<input id="f-tail" value="N807AT" required></label>
+        <label>Slot<select id="f-pos"><option value="L">Left</option><option value="R" selected>Right</option></select></label>
+        <label>Unit serial<input id="f-serial" value="S1333" required></label>
+        <label>Fault code<input id="f-code" value="34-21-01" required></label>
+        <label class="wide">Shop result (past removals)<select id="f-shop"><option value="NFF">No fault found</option><option value="Confirmed">Confirmed failure</option><option value="Pending">Not tested yet</option></select></label>
+        <button class="btn wide" type="submit">Add</button>
+        <p class="small wide" id="f-msg" role="status"></p>
+      </form>
+    </div></details>
+  </section>
+
+  <footer>
+    <p>All aircraft, units and records here are made up for demonstration. Rules run in your browser; nothing is sent anywhere.</p>
+    <p>AvioTrace prototype v4 · Team 5 · November 2026</p>
+  </footer>
+</main>
+
+<script>
+const SYSTEMS = { "34": { name: "navigation", severity: 3 }, "23": { name: "communication", severity: 2 }, "25": { name: "cabin equipment", severity: 1 } };
+const SLOT_WINDOW = 12, NEED = 2;
+
+const history = [
+  { date: "2025-09-10", tail: "N804AT", pos: "L", serial: "S0960", code: "34-21-01", wo: "WO-25-0911", shop: "NFF" },
+  { date: "2025-12-02", tail: "N801AT", pos: "L", serial: "S0702", code: "34-21-09", wo: "WO-25-1203", shop: "Confirmed" },
+  { date: "2026-02-14", tail: "N804AT", pos: "L", serial: "S1021", code: "34-21-01", wo: "WO-26-0215", shop: "NFF" },
+  { date: "2026-02-27", tail: "N810AT", pos: "R", serial: "S0811", code: "34-21-09", wo: "WO-26-0228", shop: "Confirmed" },
+  { date: "2026-03-02", tail: "N805AT", pos: "R", serial: "S0910", code: "34-21-05", wo: "WO-26-0303", shop: "NFF" },
+  { date: "2026-03-09", tail: "N802AT", pos: "R", serial: "S0877", code: "34-12-03", wo: "WO-26-0310", shop: "NFF" },
+  { date: "2026-05-03", tail: "N804AT", pos: "L", serial: "S1187", code: "34-21-01", wo: "WO-26-0504", shop: "NFF" },
+  { date: "2026-05-20", tail: "N808AT", pos: "L", serial: "S0990", code: "34-21-05", wo: "WO-26-0521", shop: "NFF" },
+  { date: "2026-06-11", tail: "N807AT", pos: "R", serial: "S0650", code: "34-21-01", wo: "WO-26-0612", shop: "NFF" },
+  { date: "2026-06-18", tail: "N806AT", pos: "L", serial: "S0877", code: "34-12-03", wo: "WO-26-0619", shop: "NFF" },
+  { date: "2026-06-25", tail: "N803AT", pos: "L", serial: "S1105", code: "34-21-09", wo: "WO-26-0626", shop: "Confirmed" },
+  { date: "2026-08-21", tail: "N804AT", pos: "L", serial: "S1240", code: "34-21-01", wo: "WO-26-0822", shop: "NFF" },
+  { date: "2026-08-30", tail: "N809AT", pos: "R", serial: "S0877", code: "34-12-03", wo: "WO-26-0831", shop: "NFF" },
+  { date: "2026-09-15", tail: "N805AT", pos: "R", serial: "S0955", code: "34-21-09", wo: "WO-26-0916", shop: "Confirmed" },
+  { date: "2026-10-02", tail: "N812AT", pos: "L", serial: "S1290", code: "34-21-01", wo: "WO-26-1003", shop: "Pending" }
+];
+
+const openCases = [
+  { id: "C1", date: "2026-11-08", tail: "N804AT", pos: "L", serial: "S1302", code: "34-21-01", text: "Attitude/nav flag came and went in climb, gone on the ground. Self-test: no active fault." },
+  { id: "C2", date: "2026-11-09", tail: "N811AT", pos: "L", serial: "S0877", code: "34-12-03", text: "Nav unit fault message came and went in cruise, cleared after landing." },
+  { id: "C3", date: "2026-11-09", tail: "N807AT", pos: "R", serial: "S0733", code: "34-21-01", text: "Nav unit fault message, once, in descent." },
+  { id: "C4", date: "2026-11-10", tail: "N805AT", pos: "R", serial: "S0990", code: "34-21-05", text: "Nav fault came and went in climb." }
+];
+
+const snapshots = {
+  C1: [["Flight phase", "Climb, about 4 minutes after takeoff"], ["Unit self-test", "Passed, no internal failure stored"], ["Inputs to the unit", "One air-data input briefly invalid just before the flag"], ["Power supply", "Within limits"], ["Other faults at the same time", "None"]],
+  C2: [["Flight phase", "Cruise"], ["Unit self-test", "Internal monitor tripped briefly"], ["Inputs to the unit", "All valid"], ["Power supply", "Within limits"], ["Other faults at the same time", "None"]],
+  C3: [["Flight phase", "Descent"], ["Unit self-test", "Not captured"], ["Inputs to the unit", "Not captured"], ["Power supply", "Not captured"], ["Other faults at the same time", "Not captured"]],
+  C4: [["Flight phase", "Climb"], ["Unit self-test", "Passed"], ["Inputs to the unit", "Not captured"], ["Power supply", "Not captured"], ["Other faults at the same time", "Unrelated cabin fault"]]
+};
+
+const state = { selected: "C1" };
+const slotName = p => p === "L" ? "left slot" : "right slot";
+const fmt = d => { const [y, m, dd] = d.split("-"); return `${Number(dd)} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].at(Number(m) - 1)} ${y}`; };
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ({1:"st",2:"nd",3:"rd"}[n % 10] || "th"));
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const word = n => ["no", "one", "two", "three", "four", "five", "six"].at(n) ?? String(n);
+function monthsBefore(dateStr, months) { const [y, m, d] = dateStr.split("-").map(Number); return new Date(Date.UTC(y, m - 1 - months, d)).toISOString().slice(0, 10); }
+function esc(s) { return String(s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch])); }
+const shopWords = s => s === "NFF" ? "shop found no fault" : s === "Confirmed" ? "shop confirmed a failure" : "not tested yet";
+
+// Rules. Slot: last 12 months. Unit: whole history (v4 change, from the synthetic fleet test).
+function assess(c, hist) {
+  const from = monthsBefore(c.date, SLOT_WINDOW);
+  const before = hist.filter(e => e.date <= c.date);
+  const slotEvents = before.filter(e => e.date >= from && e.tail === c.tail && e.pos === c.pos);
+  const slotNFF = slotEvents.filter(e => e.shop === "NFF" && e.serial !== c.serial && e.code === c.code);
+  const slotSerials = [...new Set(slotNFF.map(e => e.serial))];
+  const slotConfirmed = slotEvents.filter(e => e.shop === "Confirmed");
+  const unitEvents = before.filter(e => e.serial === c.serial);
+  const unitNFF = unitEvents.filter(e => e.shop === "NFF" && e.tail !== c.tail && e.code === c.code);
+  const unitTails = [...new Set(unitNFF.map(e => e.tail))];
+  const fleetNFF = before.filter(e => e.date >= from && e.shop === "NFF" && e.code === c.code && !(e.tail === c.tail && e.pos === c.pos) && e.serial !== c.serial);
+  const slotHit = slotSerials.length >= NEED, unitHit = unitTails.length >= NEED;
+
+  let kind = "none", level = 0, conflict = false, downgraded = false;
+  if (slotHit && !unitHit) {
+    kind = "aircraft"; level = slotSerials.length >= NEED + 1 ? 3 : 2;
+    if (slotConfirmed.length) { level -= 1; downgraded = true; }
+    if (level < 2) kind = "none";
+  } else if (unitHit && !slotHit) {
+    kind = "unit"; level = unitTails.length >= NEED + 1 ? 3 : 2;
+  } else if (slotHit && unitHit) { conflict = true; level = 1; }
+  if (kind === "none" && !conflict) level = slotSerials.length + unitTails.length > 0 ? 1 : 0;
+
+  const related = [...new Set([...slotEvents, ...unitEvents])].sort((a, b) => a.date.localeCompare(b.date));
+  const sys = SYSTEMS[c.code.slice(0, 2)] || { name: "unknown system", severity: 2 };
+  const occurrences = related.length + 1;
+  const likely = occurrences >= 4 ? 3 : occurrences >= 2 ? 2 : 1;
+  const score = sys.severity * likely;
+  const priority = score >= 9 ? "High" : score >= 4 ? "Medium" : "Low";
+  const sixFrom = monthsBefore(c.date, 6);
+  const serialCount = before.filter(e => e.serial === c.serial && e.date >= sixFrom).length + 1;
+  return { kind, level, conflict, downgraded, from, slotSerials, slotConfirmed, unitTails, fleetNFF, related, sys, occurrences, priority, serialCount };
+}
+
+const KIND = { aircraft: "Fault follows the aircraft", unit: "Fault follows the unit", none: "Not enough history yet" };
+const SURE = ["Not sure", "Weak", "Moderate", "Strong"];
+
+function answerWords(c, a) {
+  const n = a.slotSerials.length, t = a.unitTails.length;
+  if (a.kind === "aircraft") return {
+    headline: `The fault seems to stay with ${c.tail}'s ${slotName(c.pos)}, not with the unit.`,
+    next: "Check the aircraft side of this slot (wiring, connectors, power and inputs) before removing another unit.",
+    found: `${word(n)[0].toUpperCase() + word(n).slice(1)} different units came off this same slot in the last 12 months with the same fault code. The shop found nothing wrong with any of them. Now the fault is back with a ${ordinal(n + 1)} unit installed.`,
+    means: "The units keep changing but the problem stays in one place, so the common factor is something that stays with the aircraft.",
+    change: a.downgraded ? "A confirmed unit failure at this slot already lowers how sure we are." : "A confirmed failure of a unit from this slot would lower how sure we are, because a real unit fault could explain the removals."
+  };
+  if (a.kind === "unit") return {
+    headline: `The fault seems to travel with unit ${c.serial}.`,
+    next: "Send this unit to the shop with its full history and ask for extended testing (for example temperature or vibration), not only the standard bench test. Keep it out of the spares pool until then.",
+    found: `This same unit came off ${word(t)} other aircraft (${a.unitTails.join(", ")}) with the same fault code. Each time the shop found nothing wrong. Now it shows the same fault on a ${ordinal(t + 1)} aircraft.`,
+    means: "The aircraft keep changing but the problem follows one unit, so the unit is the common factor, and the standard shop test is not catching its fault.",
+    change: "If extended testing finds nothing and the fault stays on this aircraft after the unit is swapped, the answer would move toward the aircraft side."
+  };
+  const parts = [];
+  parts.push(n ? `${n === 1 ? "One other unit" : `${word(n)} other units`} came off this slot with no fault found.` : "No other unit came off this slot with no fault found in the last 12 months.");
+  if (t) parts.push(`This unit came off ${word(t)} other aircraft with no fault found.`);
+  if (a.slotConfirmed.length) parts.push(`A unit from this slot had a confirmed failure (${a.slotConfirmed.map(e => e.serial).join(", ")}), which could explain the earlier trouble.`);
+  return {
+    headline: a.conflict ? "The records point both ways, so we can't tell yet." : "Not enough history to point anywhere yet.",
+    next: "Follow the standard fault-isolation steps and record the result carefully. It becomes evidence for the next time.",
+    found: parts.join(" "),
+    means: `One event is not a pattern. AvioTrace waits for at least ${word(NEED)} repeats pointing the same way before it suggests anything.`,
+    change: `${word(NEED)[0].toUpperCase() + word(NEED).slice(1)} or more different units coming off this slot with no fault found, or this unit doing the same on ${word(NEED)} aircraft.`
+  };
+}
+
+function causes(c, a) {
+  const n = a.slotSerials.length, t = a.unitTails.length, f = a.fleetNFF.length;
+  if (a.kind === "aircraft") return [
+    ["Wiring or connector at this slot", "More likely", "more", "It stays with the slot while the units change."],
+    ["Power or grounding at this slot", "More likely", "more", "Same reason."],
+    ["Bad signal from another system", "Possible", "open", "The same fault code each time suggests the same signal path. Check the inputs to this slot."],
+    ["Fault inside the unit", "Less likely", "less", `${word(n)[0].toUpperCase() + word(n).slice(1)} separate units would all need the same hidden fault.`],
+    ["Shop test misses the fault", "Less likely, still possible", "open", `No-fault-found results for this code cluster here (${n} at this slot, ${f} elsewhere in the fleet), which points to the aircraft more than the test. The numbers are small.`]
+  ];
+  if (a.kind === "unit") return [
+    ["Fault inside the unit", "More likely", "unit", `Same unit, same fault, ${word(t + 1)} different aircraft.`],
+    ["Shop test misses the fault", "More likely", "unit", `It failed in flight ${t + 1} times but passed the standard shop test ${t} times.`],
+    ["Wiring or connector on the aircraft", "Less likely", "less", `${word(t + 1)[0].toUpperCase() + word(t + 1).slice(1)} different aircraft would all need the same wiring problem.`],
+    ["Power, grounding or other systems", "Less likely", "less", "Same reason: the aircraft keep changing."]
+  ];
+  return [
+    ["Fault inside the unit", "Can't tell yet", "open", a.slotConfirmed.length ? "A unit here had a real failure before, so a unit fault is possible." : "Only one event so far."],
+    ["Wiring, connector or power at this slot", "Can't tell yet", "open", "Not enough repeats at this slot."],
+    ["Shop test misses the fault", "Can't tell yet", "open", "Not enough repeats to judge."]
+  ];
+}
+
+function bars(level) { return `<span class="bars" aria-hidden="true">${[1,2,3].map(i => `<i class="${i <= level ? "on" : ""}"></i>`).join("")}</span>`; }
+
+function renderCases() {
+  const el = document.getElementById("cases");
+  el.innerHTML = openCases.map((c, i) => {
+    const a = assess(c, history);
+    return `<button class="case k-${a.kind}" data-id="${esc(c.id)}" aria-pressed="${c.id === state.selected}">
+      <span class="line1">Case ${i + 1} · ${esc(c.tail)}, ${slotName(c.pos)}</span>
+      <span class="line2"><span class="dot"></span>${KIND[a.kind]} · ${a.priority} priority</span></button>`;
+  }).join("");
+  el.querySelectorAll(".case").forEach(b => b.addEventListener("click", () => {
+    state.selected = b.dataset.id; render();
+    document.getElementById("answer").scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
+}
+
+function render() {
+  renderCases();
+  const idx = Math.max(0, openCases.findIndex(x => x.id === state.selected));
+  const c = openCases.at(idx), a = assess(c, history), w = answerWords(c, a);
+
+  document.getElementById("answer").innerHTML = `<div class="card answer k-${a.kind}">
+    <div class="kicker"><span class="dot k-${a.kind}"></span>Case ${idx + 1} · ${KIND[a.kind]}</div>
+    <p class="headline">${esc(w.headline)}</p>
+    <div class="next"><strong>Do this next</strong>${esc(w.next)}</div>
+    <div class="gauges">
+      <div class="gauge"><div class="label">How sure</div><div class="value">${SURE[a.level]}${bars(a.level)}</div></div>
+      <div class="gauge"><div class="label">How urgent</div><div class="value">${a.priority}</div><div class="label">${esc(a.sys.name)} · ${a.occurrences} faults or removals, including today</div></div>
+    </div>${a.level < 2 && a.priority !== "Low" ? `<p class="small muted note">Why urgent if we're not sure? Urgency and certainty are measured separately. This is a ${esc(a.sys.name)} fault that has come up ${word(a.occurrences)} times at this slot or with this unit, so it deserves attention ${a.priority === "High" ? "now" : "soon"}, even though the cause isn't clear yet.</p>` : ""}</div>`;
+
+  const shown = a.related.filter(e => e.serial === c.serial || e.date >= a.from);
+  const tl = shown.map(e => {
+    const sameSlot = e.tail === c.tail && e.pos === c.pos, sameUnit = e.serial === c.serial;
+    return `<li><span class="when">${fmt(e.date)}</span>
+      <span class="what"><span class="hl ${sameSlot ? "slot" : ""}">${esc(e.tail)} ${slotName(e.pos)}</span> · unit <span class="hl ${sameUnit ? "unit" : ""}">${esc(e.serial)}</span></span>
+      <span class="res">Code ${esc(e.code)} · ${shopWords(e.shop)}</span></li>`;
+  });
+  tl.push(`<li class="today"><span class="when">${fmt(c.date)} · today</span>
+    <span class="what"><span class="hl slot">${esc(c.tail)} ${slotName(c.pos)}</span> · unit <span class="hl unit">${esc(c.serial)}</span></span>
+    <span class="res">Code ${esc(c.code)} · fault again</span></li>`);
+  const key = a.kind === "aircraft" ? "Highlighted: the same slot every time, with a different unit each time."
+    : a.kind === "unit" ? "Highlighted: the same unit every time, on a different aircraft each time." : "";
+
+  document.getElementById("steps").innerHTML = `
+    <li><h3>What was reported</h3><p class="quote">${esc(c.text)}</p>
+      <p class="small muted">${esc(c.tail)}, ${slotName(c.pos)} · unit ${esc(c.serial)} · fault code ${esc(c.code)}</p></li>
+    <li><h3>What we looked up</h3><p class="small">Every removal from this slot in the last 12 months, and every removal of this unit in its whole history, with what the repair shop found each time.</p></li>
+    <li><h3>What we found</h3><p class="small">${esc(w.found)}</p>
+      <ul class="tl k-${a.kind}">${tl.join("")}</ul>${key ? `<p class="key">${key}</p>` : ""}</li>
+    <li><h3>What that means</h3><p class="small">${esc(w.means)}</p>
+      <ul class="causes">${causes(c, a).map(([name, lk, cls, why]) => `<li><span>${esc(name)}</span><span class="lk ${cls}">${esc(lk)}</span><span class="why">${esc(why)}</span></li>`).join("")}</ul></li>
+    <li><h3>What would change this answer</h3><p class="small">${esc(w.change)}</p></li>`;
+
+  const recs = a.related.slice().reverse();
+  document.getElementById("records").innerHTML = recs.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Where</th><th>Unit</th><th>Shop result</th></tr></thead><tbody>
+    ${recs.map(e => `<tr><td>${fmt(e.date)}</td><td>${esc(e.tail)} ${slotName(e.pos)}<br><span class="muted mono">${esc(e.wo)}</span></td><td class="mono">${esc(e.serial)}</td><td>${e.shop === "NFF" ? "No fault found: standard bench test passed 42 of 42 steps at room temperature" : e.shop === "Confirmed" ? "Confirmed failure: bench test failed at step 17, repaired" : "Not tested yet"}</td></tr>`).join("")}
+    </tbody></table></div><p class="small muted">Each line links back to its work order, so anyone can check the original record.</p>` : `<p class="small muted">No earlier records for this slot or unit.</p>`;
+
+  document.getElementById("snap").innerHTML = `<table><tbody>${(snapshots[c.id] || [["Not captured", "No in-flight data for this fault"]]).map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table>
+    <p class="small muted">Example of the in-flight context a later version would capture (Layer 2). Not used by the rules above.</p>`;
+
+  const flagged = a.serialCount >= 3;
+  document.getElementById("compare").innerHTML = `<p class="small">A typical rule looks only at one serial number: flag it after 3 removals in 6 months. Unit ${esc(c.serial)} has ${plural(a.serialCount, "removal", "removals")} in 6 months (including today), so that rule would say <strong>${flagged ? "flag this unit" : "nothing"}</strong>.</p>
+    <p class="small muted">${a.kind === "aircraft" ? "It cannot see this pattern, because every unit in this slot is a different serial number." : a.kind === "unit" ? (flagged ? "Here both agree, but AvioTrace also shows that the aircraft are different each time." : "AvioTrace flags it earlier because it counts different aircraft over the unit's whole history.") : "Here neither rule has enough to go on."}</p>`;
+}
+
+document.getElementById("add").addEventListener("submit", ev => {
+  ev.preventDefault();
+  const v = id => document.getElementById(id).value.trim();
+  const msg = document.getElementById("f-msg");
+  const rec = { date: v("f-date"), tail: v("f-tail").toUpperCase(), pos: v("f-pos"), serial: v("f-serial").toUpperCase(), code: v("f-code") };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(rec.date) || !rec.tail || !rec.serial || !/^\d{2}-\d{2}-\d{2}$/.test(rec.code)) { msg.textContent = "Please fill in every field (fault code like 34-21-01)."; return; }
+  if (v("f-type") === "open") {
+    const id = "C" + (openCases.length + 1);
+    openCases.push({ id, ...rec, text: "New fault added by you." });
+    state.selected = id; msg.textContent = `Added as case ${openCases.length}. Its answer is shown above.`;
+  } else {
+    history.push({ ...rec, wo: "WO-NEW-" + String(history.length + 1).padStart(3, "0"), shop: v("f-shop") });
+    msg.textContent = "Removal added. Every answer above has been updated.";
+  }
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
